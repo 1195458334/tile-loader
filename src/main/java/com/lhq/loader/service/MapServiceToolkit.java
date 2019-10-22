@@ -7,11 +7,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.lhq.loader.bean.DownFile;
+import com.lhq.loader.bean.DownloadTask;
 import com.lhq.loader.bean.LngLat;
 import com.lhq.loader.bean.SysConfig;
 import com.lhq.loader.bean.Tile;
 import com.lhq.loader.commons.DownloadProgress;
-import com.lhq.loader.commons.consts.ProgressStateEnum;
 import com.lhq.loader.commons.toolkit.SpringContextToolkit;
 import com.lhq.loader.controller.vo.DownloadParamVO;
 import com.lhq.loader.function.LngLatTrans;
@@ -113,23 +113,20 @@ public class MapServiceToolkit {
                         logger.error(e.getLocalizedMessage(), e);
                         Thread.currentThread().interrupt();
                     }
+
                     // 校验当前任务的状态
-                    while (true) {
-                        long state = downloadProgress.get(downloadParamVO.getId()).get(DownloadProgress.STATE);
-                        // 暂停状态，睡眠5秒后重试
-                        if (state == ProgressStateEnum.PAUSE.getState()) {
+                    DownloadTask task = downloadProgress.get(downloadParamVO.getId());
+                    if (task.isStop()) {// 停止状态，直接跳出最外层循环，结束本次任务
+                        break outer;
+                    } else {
+                        if (task.getSemaphore().availablePermits() == 0) {// 暂停状态
                             try {
-                                Thread.sleep(5000);
+                                task.getSemaphore().acquire();// 阻塞模式，获取信号
+                                task.getSemaphore().release();// 获取到再释放
                             } catch (InterruptedException e) {
-                                logger.error(e.getMessage(), e);
+                                logger.error(e.getLocalizedMessage(), e);
                                 Thread.currentThread().interrupt();
                             }
-                        } else if (state == ProgressStateEnum.STOP.getState()) {
-                            // 停止状态，直接跳出最外层循环，结束本次任务
-                            break outer;
-                        } else {
-                            // 启动状态，跳出本次循环，继续处理
-                            break;
                         }
                     }
                 }

@@ -103,7 +103,7 @@ public class MapController {
     public ResultData<String> startDownload(@RequestBody DownloadParamVO downloadParamVO) {
         downloadParamVO.setId(UUID.randomUUID().toString().replaceAll("-", ""));
         downloadParamVO.setPath(downloadParamVO.getPath() + File.separator + downloadParamVO.getType());
-        if (!downloadProgress.startTask(downloadParamVO.getId())) {
+        if (!downloadProgress.canStartNewTask(downloadParamVO.getId())) {
             throw new BaseException("下载任务最大支持" + sysConfig.getMaxTask() + "个，请等待其他任务下载结束或暂停其他任务");
         }
         IMapService mapService = this.getMapService(downloadParamVO.getType());
@@ -181,7 +181,8 @@ public class MapController {
      */
     @PostMapping("/getProgress")
     public ResultData<Map<String, Map<String, Long>>> getProgress() {
-        return new ResultData<Map<String, Map<String, Long>>>().success(downloadProgress);
+//        return new ResultData<Map<String, Map<String, Long>>>().success(downloadProgress);
+        return null;
     }
 	
     /**

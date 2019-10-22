@@ -35,7 +35,7 @@ public class LocalDownloaderService implements IDownloaderService {
             try {
                 DownFile downFile = MapServiceToolkit.getTileQueue().take();
                 this.downloadFile(downFile.getUrl(), downFile.getFileName(), downFile.getMapType());
-                downloadProgress.addTaskCurrent(downFile.getThreadId(), 1L);
+                downloadProgress.taskIncrement(downFile.getThreadId());
             } catch (InterruptedException e) {
                 logger.error(e.getLocalizedMessage(), e);
                 Thread.currentThread().interrupt();
