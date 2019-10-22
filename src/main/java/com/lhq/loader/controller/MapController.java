@@ -2,10 +2,14 @@ package com.lhq.loader.controller;
 
 import java.io.File;
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
+import java.util.Map.Entry;
+import java.util.TreeMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.servlet.http.HttpServletResponse;
 
@@ -23,6 +27,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.lhq.loader.bean.DownloadTask;
 import com.lhq.loader.bean.SysConfig;
 import com.lhq.loader.bean.Tile;
 import com.lhq.loader.commons.DownloadProgress;
@@ -60,6 +65,7 @@ public class MapController {
     @Autowired(required = false)
     private MongoDbFactory mongoDbFactory;
 
+    private AtomicInteger autoId = new AtomicInteger(0);
 
     /**
      * 当使用mongo存储瓦片时，查看瓦片
@@ -101,10 +107,14 @@ public class MapController {
      */
     @PostMapping("/startDownload")
     public ResultData<String> startDownload(@RequestBody DownloadParamVO downloadParamVO) {
-        downloadParamVO.setId(UUID.randomUUID().toString().replaceAll("-", ""));
-        downloadParamVO.setPath(downloadParamVO.getPath() + File.separator + downloadParamVO.getType());
-        if (!downloadProgress.canStartNewTask(downloadParamVO.getId())) {
-            throw new BaseException("下载任务最大支持" + sysConfig.getMaxTask() + "个，请等待其他任务下载结束或暂停其他任务");
+        synchronized (autoId) {
+            int id = autoId.incrementAndGet();
+            downloadParamVO.setId(String.format("%02d", id));
+            downloadParamVO.setPath(downloadParamVO.getPath() + File.separator + downloadParamVO.getType());
+            if (!downloadProgress.canStartNewTask(downloadParamVO.getId())) {
+                autoId.decrementAndGet();
+                throw new BaseException("下载任务最大支持" + sysConfig.getMaxTask() + "个，请等待其他任务下载结束或停止其他任务");
+            }
         }
         IMapService mapService = this.getMapService(downloadParamVO.getType());
         mapService.startDownload(downloadParamVO);
@@ -180,9 +190,29 @@ public class MapController {
      * @return
      */
     @PostMapping("/getProgress")
-    public ResultData<Map<String, Map<String, Long>>> getProgress() {
-//        return new ResultData<Map<String, Map<String, Long>>>().success(downloadProgress);
-        return null;
+    public ResultData<Map<String, DownloadTask>> getProgress() {
+        Map<String, DownloadTask> result = new TreeMap<String, DownloadTask>(
+                new Comparator<String>() {
+                    @Override
+                    public int compare(String o1, String o2) {
+                        // 升序排序
+                        return Integer.valueOf(o1) - Integer.valueOf(o2);
+                    }
+                });
+
+        for (Entry<String, DownloadTask> entry : downloadProgress.entrySet()) {
+            DownloadTask task = entry.getValue();
+            if (task.getCount() == 0) {
+                task.setPercent(0);
+            } else {
+                double percent = task.getCurrent().get() / (double) task.getCount() * 100;
+                BigDecimal b = BigDecimal.valueOf(percent);
+                percent = b.setScale(2, BigDecimal.ROUND_HALF_UP).doubleValue();
+                task.setPercent(percent);
+            }
+            result.put(entry.getKey(), task);
+        }
+        return new ResultData<Map<String, DownloadTask>>().success(result);
     }
 	
     /**

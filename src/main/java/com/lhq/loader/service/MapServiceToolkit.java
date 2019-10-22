@@ -116,13 +116,13 @@ public class MapServiceToolkit {
 
                     // 校验当前任务的状态
                     DownloadTask task = downloadProgress.get(downloadParamVO.getId());
-                    if (task.isStop()) {// 停止状态，直接跳出最外层循环，结束本次任务
+                    if (task.getState() == 2) {// 停止状态，直接跳出最外层循环，结束本次任务
                         break outer;
                     } else {
-                        if (task.getSemaphore().availablePermits() == 0) {// 暂停状态
+                        if (task.getState() == 1) {// 暂停状态
                             try {
-                                task.getSemaphore().acquire();// 阻塞模式，获取信号
-                                task.getSemaphore().release();// 获取到再释放
+                                task.getSemaphore().acquire(1);// 阻塞模式，获取信号
+                                task.getSemaphore().release(1);// 获取到再释放
                             } catch (InterruptedException e) {
                                 logger.error(e.getLocalizedMessage(), e);
                                 Thread.currentThread().interrupt();

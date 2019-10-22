@@ -37,7 +37,7 @@ public class DownloadProgress extends ConcurrentHashMap<String, DownloadTask> {
         // 当前任务不存在
         if (task == null) {
             // 当前进行中任务数量小于maxTask，允许操作
-            if (this.inStartingNum() < sysConfig.getMaxTask()) {
+            if (this.noStopTask() < sysConfig.getMaxTask()) {
                 task = new DownloadTask();
                 this.put(id, task);
                 flag = true;
@@ -77,8 +77,8 @@ public class DownloadProgress extends ConcurrentHashMap<String, DownloadTask> {
         }
         task.getCurrent().incrementAndGet();
         // 瓦片下载结束后，将状态标记为stop
-        if (task.getCurrent().get() == task.getCount()) {
-            task.setStop(true);
+        if (task.getCurrent().get() == task.getCount() && task.getCount() != 0) {
+            task.setState(2);
         }
     }
 
@@ -92,18 +92,17 @@ public class DownloadProgress extends ConcurrentHashMap<String, DownloadTask> {
         if (task == null) {
             throw new BaseException("下载任务" + id + "不存在");
         }
-        if (task.isStop()) {
+        if (task.getState() == 2) {
             throw new BaseException("该任务已经停止，不能启动");
         }
-        if (task.getCurrent().get() == task.getCount()) {
-            task.setStop(true);
+        if (task.getCurrent().get() == task.getCount() && task.getCount() != 0) {
             throw new BaseException("该任务已经下载结束，不能启动");
         }
         synchronized (this) {
-            if (this.inStartingNum() >= sysConfig.getMaxTask()) {
-                throw new BaseException("下载任务最大支持" + sysConfig.getMaxTask() + "个，请等待其他任务下载结束或暂停其他任务");
+            if (task.getState() == 1) {// 暂停状态时可以启动
+                task.setState(0);
+                task.getSemaphore().release(1);// 新增一个信号量
             }
-            task.getSemaphore().release(1);
         }
         return true;
     }
@@ -118,16 +117,18 @@ public class DownloadProgress extends ConcurrentHashMap<String, DownloadTask> {
         if (task == null) {
             throw new BaseException("下载任务" + id + "不存在");
         }
-        if (task.isStop()) {
-            throw new BaseException("该任务已经停止，不能启动");
+        if (task.getState() == 2) {
+            throw new BaseException("该任务已经停止，不能暂停");
         }
-        if (task.getCurrent().get() == task.getCount()) {
-            task.setStop(true);
+        if (task.getCurrent().get() == task.getCount() && task.getCount() != 0) {
             throw new BaseException("该任务已经下载结束，不能暂停");
         }
         synchronized (this) {
             try {
-                task.getSemaphore().acquire(1);
+                if (task.getState() == 0) {
+                    task.setState(1);
+                    task.getSemaphore().acquire(1);// 消耗一个信号量
+                }
             } catch (InterruptedException e) {
                 logger.error(e.getLocalizedMessage(), e);
                 Thread.currentThread().interrupt();
@@ -146,20 +147,25 @@ public class DownloadProgress extends ConcurrentHashMap<String, DownloadTask> {
         if (task == null) {
             throw new BaseException("下载任务" + id + "不存在");
         }
-        task.setStop(true);
+        synchronized (this) {
+            if (task.getState() == 1) {// 暂停状态时线程可能处于阻塞状态，此时新增一个信号量退出阻塞模式
+                task.getSemaphore().release(1);// 新增一个信号量
+            }
+            task.setState(2);
+        }
         return true;
     }
 
     /**
-     * 正在下载的任务数量
+     * 没有停止的任务数量
      * 
      * @return
      */
-    private int inStartingNum() {
+    private int noStopTask() {
         int num = 0;
         for (Entry<String, DownloadTask> entry : this.entrySet()) {
             DownloadTask task = entry.getValue();
-            if (!task.isStop() && task.getSemaphore().availablePermits() > 0) {
+            if (task.getState() != 2) {
                 num++;
             }
         }

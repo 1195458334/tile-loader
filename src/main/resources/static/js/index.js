@@ -250,7 +250,7 @@ function download() {
 function addTaskList(id) {
 	$(".downloadTask").append(
 		'<div id="_'+id+'" style="margin: 4px;">' +
-			'<div style="float: left;">任务:</div>' +
+			'<div style="float: left;">任务'+id+':</div>' +
 			'<div class="layui-progress layui-progress-big" lay-showPercent="yes" lay-filter="_'+id+'" style="width: 50%; float: left; margin-top: 2px;margin-left: 5px;">' +
 				'<div class="layui-progress-bar" lay-percent="0"></div>' +
 			'</div>' +
@@ -273,38 +273,32 @@ setInterval(function() {
 		success: function(data) {
 			ResultHandler.successNoTip(data, function(data) {
 				for(var i in data.result) {
-					var state = data.result[i]['STATE'];
+					var state = data.result[i]['state'];
+					var percent = data.result[i]['percent'];
 					// 页面刷新后，重现渲染下载列表
 					if($('#_'+i).length == 0 && state != 2) {
 						addTaskList(i);
 					}
-					var progress = data.result[i]['CURRENT'] / data.result[i]['COUNT'];
-					if(!isNaN(progress)) {
-						progress = Math.floor(progress * 100) / 100 
-						if(progress == 1 && data.result[i]['CURRENT'] != data.result[i]['COUNT']) {
-							progress = 0.9999;
-						}
-						lay.element.progress('_'+i, progress * 100 + '%');
-						
-						// 开始状态
-						if(state == 0) {
-							$('.downloadTask').find('.start[data-id="'+i+'"]').hide();
-							$('.downloadTask').find('.pause[data-id="'+i+'"]').show();
-							$('.downloadTask').find('.stop[data-id="'+i+'"]').show();
-							$('.downloadTask').find('.remove[data-id="'+i+'"]').hide();
-						// 暂停状态
-						} else if(state == 1) {
-							$('.downloadTask').find('.start[data-id="'+i+'"]').show();
-							$('.downloadTask').find('.pause[data-id="'+i+'"]').hide();
-							$('.downloadTask').find('.stop[data-id="'+i+'"]').show();
-							$('.downloadTask').find('.remove[data-id="'+i+'"]').hide();
-						// 停止状态
-						} else {
-							$('.downloadTask').find('.start[data-id="'+i+'"]').hide();
-							$('.downloadTask').find('.pause[data-id="'+i+'"]').hide();
-							$('.downloadTask').find('.stop[data-id="'+i+'"]').hide();
-							$('.downloadTask').find('.remove[data-id="'+i+'"]').show();
-						}
+					lay.element.progress('_'+i, percent + '%');
+					
+					// 开始状态
+					if(state == 0) {
+						$('.downloadTask').find('.start[data-id="'+i+'"]').hide();
+						$('.downloadTask').find('.pause[data-id="'+i+'"]').show();
+						$('.downloadTask').find('.stop[data-id="'+i+'"]').show();
+						$('.downloadTask').find('.remove[data-id="'+i+'"]').hide();
+					// 暂停状态
+					} else if(state == 1) {
+						$('.downloadTask').find('.start[data-id="'+i+'"]').show();
+						$('.downloadTask').find('.pause[data-id="'+i+'"]').hide();
+						$('.downloadTask').find('.stop[data-id="'+i+'"]').show();
+						$('.downloadTask').find('.remove[data-id="'+i+'"]').hide();
+					// 停止状态
+					} else {
+						$('.downloadTask').find('.start[data-id="'+i+'"]').hide();
+						$('.downloadTask').find('.pause[data-id="'+i+'"]').hide();
+						$('.downloadTask').find('.stop[data-id="'+i+'"]').hide();
+						$('.downloadTask').find('.remove[data-id="'+i+'"]').show();
 					}
 				}
 			})
